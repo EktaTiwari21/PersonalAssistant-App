@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, StyleSheet, ActivityIndicator, Platform, TouchableOpacity, Text, Alert } from 'react-native';
 import { GiftedChat, Bubble, Send, InputToolbar, IMessage } from 'react-native-gifted-chat';
+import * as Speech from 'expo-speech';
+import { Audio } from 'expo-av';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -9,7 +11,6 @@ const BOT = { _id: 2, name: 'Assistant', avatar: 'https://i.imgur.com/g0G0Y.png'
 
 const API_URL = 'http://10.0.2.2:5000/api';
 
-// New Prop Interface
 interface ChatScreenProps {
   onLogout: () => void;
 }
@@ -17,8 +18,11 @@ interface ChatScreenProps {
 export default function ChatScreen({ onLogout }: ChatScreenProps) {
   const [messages, setMessages] = useState<IMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
 
   useEffect(() => {
+    // Load Chat History
     fetch(`${API_URL}/chat`)
       .then((response) => response.json())
       .then((data) => {
@@ -48,14 +52,90 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
               body: JSON.stringify({ startDate: new Date() }),
             })
             .then(res => {
-              if (res.ok) Alert.alert("Success", "Period logged!");
-              else Alert.alert("Error", "Could not log period.");
+              if (res.ok) {
+                // Success: Show a confirmation Alert instead of a Push Notification
+                Alert.alert("✅ Reminder Set", "I've logged your period. I'll remind you when the next one is expected!");
+              } else {
+                Alert.alert("Error", "Could not log period.");
+              }
             })
             .catch(err => console.error(err));
           }
         }
       ]
     );
+  };
+
+  // --- Audio Recording Functions ---
+  async function startRecording() {
+    try {
+      const permission = await Audio.requestPermissionsAsync();
+      if (permission.status === 'granted') {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+        const { recording } = await Audio.Recording.createAsync(
+          Audio.RecordingOptionsPresets.HIGH_QUALITY
+        );
+        setRecording(recording);
+        setIsRecording(true);
+      } else {
+        Alert.alert("Permission denied", "We need microphone access to hear you!");
+      }
+    } catch (err) {
+      console.error('Failed to start recording', err);
+    }
+  }
+
+  async function stopRecording() {
+    if (!recording) return;
+    setIsRecording(false);
+    await recording.stopAndUnloadAsync();
+    const uri = recording.getURI();
+    setRecording(null);
+    if (uri) uploadAudio(uri);
+  }
+
+  const uploadAudio = async (uri: string) => {
+    setIsLoading(true);
+    const tempId = uuidv4();
+    const voiceMsg: IMessage = {
+        _id: tempId,
+        text: '🎤 [Sending Voice...]',
+        createdAt: new Date(),
+        user: USER,
+    };
+    setMessages((previousMessages) => GiftedChat.append(previousMessages, [voiceMsg]));
+
+    const formData = new FormData();
+    formData.append('audio', {
+      uri: uri,
+      name: 'recording.m4a',
+      type: 'audio/m4a',
+    } as any);
+
+    try {
+      const response = await fetch(`${API_URL}/chat/voice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'multipart/form-data' },
+        body: formData,
+      });
+      const data = await response.json();
+      const botReply = {
+        _id: uuidv4(),
+        text: data.reply,
+        createdAt: new Date(),
+        user: BOT,
+      };
+      setMessages((previousMessages) => GiftedChat.append(previousMessages, [botReply]));
+      Speech.speak(data.reply);
+    } catch (error) {
+      console.error("Upload failed", error);
+      Alert.alert("Error", "Failed to process voice message.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSend = useCallback((newMessages: IMessage[] = []) => {
@@ -77,6 +157,7 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
           user: BOT,
         };
         setMessages((previousMessages) => GiftedChat.append(previousMessages, [botReply]));
+        Speech.speak(data.reply);
       })
       .catch((error) => console.error(error))
       .finally(() => setIsLoading(false));
@@ -89,7 +170,6 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <View>
             <Text style={styles.headerTitle}>Assistant</Text>
@@ -106,7 +186,21 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
         messages={messages}
         onSend={handleSend}
         user={{ _id: USER._id }}
-        renderInputToolbar={(props) => <InputToolbar {...props} containerStyle={styles.inputToolbar} />}
+        renderInputToolbar={(props) => (
+            <View style={styles.inputContainer}>
+                <InputToolbar
+                    {...props}
+                    containerStyle={styles.inputToolbar}
+                    primaryStyle={{ alignItems: 'center' }}
+                />
+                <TouchableOpacity
+                    style={[styles.micButton, isRecording && styles.micButtonRecording]}
+                    onPress={isRecording ? stopRecording : startRecording}
+                >
+                    <Text style={styles.micText}>{isRecording ? "⬛" : "🎤"}</Text>
+                </TouchableOpacity>
+            </View>
+        )}
         renderSend={(props) => <Send {...props} containerStyle={styles.sendButton} />}
         renderBubble={(props) => (
           <Bubble {...props}
@@ -133,10 +227,33 @@ const styles = StyleSheet.create({
     borderBottomColor: '#333',
   },
   headerTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  logoutText: { color: '#aaa', fontSize: 12, marginTop: 4 }, // Style for Sign Out
+  logoutText: { color: '#aaa', fontSize: 12, marginTop: 4 },
   logButton: { backgroundColor: '#FF4081', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
   logButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
-  inputToolbar: { backgroundColor: '#2C2C2E', borderTopWidth: 0, paddingVertical: 8 },
+  inputContainer: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      backgroundColor: '#2C2C2E',
+      paddingRight: 10,
+  },
+  inputToolbar: {
+      flex: 1,
+      backgroundColor: 'transparent',
+      borderTopWidth: 0,
+      paddingVertical: 8
+  },
+  micButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#373739',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 6,
+      marginLeft: 5,
+  },
+  micButtonRecording: { backgroundColor: '#FF453A' },
+  micText: { fontSize: 20 },
   sendButton: { justifyContent: 'center', alignItems: 'center', height: 40, width: 40, marginRight: 5 },
   userBubble: { backgroundColor: '#007AFF' },
   botBubble: { backgroundColor: '#373739' },
