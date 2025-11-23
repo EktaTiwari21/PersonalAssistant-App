@@ -4,6 +4,7 @@ import { GiftedChat, Bubble, Send, InputToolbar, IMessage } from 'react-native-g
 import * as Speech from 'expo-speech';
 import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons'; // <--- NEW: Professional Icons
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -15,7 +16,7 @@ const BOT = {
   avatar: 'https://img.freepik.com/free-vector/graident-ai-robot-vectorart_78370-4114.jpg'
 };
 
-// Use your IP address!
+// YOUR IP ADDRESS HERE
 const API_URL = 'http://192.168.29.49:5000/api';
 
 interface ChatScreenProps {
@@ -28,6 +29,9 @@ export default function ChatScreen({ onLogout, token }: ChatScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+
+  // --- NEW: Voice State ---
+  const [isMuted, setIsMuted] = useState(false); // Default is NOT muted (Voice On)
 
   useEffect(() => {
     fetch(`${API_URL}/chat`, {
@@ -48,19 +52,26 @@ export default function ChatScreen({ onLogout, token }: ChatScreenProps) {
       .catch((error) => console.error('Error loading history:', error));
   }, []);
 
-  // --- NEW: Safe Speech Function ---
+  // --- SPEECH LOGIC ---
   const speakText = (text: string) => {
-    // Android crashes if text is > 4000 chars.
-    // We limit it to 3900 to be safe.
+    if (isMuted) return; // Don't speak if muted
+
     const LIMIT = 3900;
-    if (text.length > LIMIT) {
-        console.log("Speech too long, truncating...");
-        Speech.speak(text.substring(0, LIMIT));
-    } else {
-        Speech.speak(text);
-    }
+    const textToSpeak = text.length > LIMIT ? text.substring(0, LIMIT) : text;
+    Speech.speak(textToSpeak);
   };
-  // --------------------------------
+
+  const toggleMute = () => {
+      if (isMuted) {
+          setIsMuted(false);
+          Alert.alert("Voice On", "I will read replies out loud.");
+      } else {
+          Speech.stop(); // Immediately stop talking
+          setIsMuted(true);
+          // No alert needed for mute, instant silence is better
+      }
+  };
+  // --------------------
 
   const handleLogPeriod = () => {
     Alert.alert(
@@ -81,7 +92,7 @@ export default function ChatScreen({ onLogout, token }: ChatScreenProps) {
             })
             .then(res => {
               if (res.ok) {
-                Alert.alert("✅ Reminder Set", "I've logged your period. I'll remind you when the next one is expected!");
+                Alert.alert("✅ Reminder Set", "Period logged! I'll track this for you.");
               } else {
                 Alert.alert("Error", "Could not log period.");
               }
@@ -94,6 +105,9 @@ export default function ChatScreen({ onLogout, token }: ChatScreenProps) {
   };
 
   async function startRecording() {
+    // Stop speaking if user starts recording
+    Speech.stop();
+
     try {
       const permission = await Audio.requestPermissionsAsync();
       if (permission.status === 'granted') {
@@ -151,8 +165,7 @@ export default function ChatScreen({ onLogout, token }: ChatScreenProps) {
       const data = await response.json();
 
       if (!response.ok || !data.reply) {
-        console.log("Backend Error or No Reply:", data);
-        Alert.alert("Voice Error", "I couldn't process that audio. Please try again.");
+        Alert.alert("Voice Error", "I couldn't process that audio.");
         return;
       }
 
@@ -164,7 +177,6 @@ export default function ChatScreen({ onLogout, token }: ChatScreenProps) {
       };
       setMessages((previousMessages) => GiftedChat.append(previousMessages, [botReply]));
 
-      // Use our safe helper instead of Speech.speak directly
       speakText(data.reply);
 
     } catch (error) {
@@ -180,6 +192,8 @@ export default function ChatScreen({ onLogout, token }: ChatScreenProps) {
     setMessages((prev) => GiftedChat.append(prev, [userMessage]));
     setIsLoading(true);
 
+    Speech.stop(); // Stop any previous speech
+
     fetch(`${API_URL}/chat`, {
         method: 'POST',
         headers: {
@@ -191,45 +205,100 @@ export default function ChatScreen({ onLogout, token }: ChatScreenProps) {
         if (d.reply) {
             const botReply = { _id: uuidv4(), text: d.reply, createdAt: new Date(), user: BOT };
             setMessages(p => GiftedChat.append(p, [botReply]));
-
-            // Use our safe helper here too!
             speakText(d.reply);
         }
     }).catch((error) => console.error(error))
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [isMuted]); // Depends on mute state
 
   const renderFooter = () => {
     if (isLoading) return <View style={styles.footer}><ActivityIndicator size="small" color="#FFF" /></View>;
     return null;
   };
 
-  // --- UI RENDER ---
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#232526', '#414345']} style={StyleSheet.absoluteFill} />
+
+      <LinearGradient
+        colors={['#232526', '#414345']}
+        style={StyleSheet.absoluteFill}
+      />
+
+      {/* --- UPDATED HEADER --- */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
             <Image source={{ uri: BOT.avatar }} style={styles.headerAvatar} />
-            <View><Text style={styles.headerTitle}>Nova</Text><Text style={styles.headerSubtitle}>Always online</Text></View>
+            <View>
+                <Text style={styles.headerTitle}>Nova</Text>
+                <Text style={styles.headerSubtitle}>Always online</Text>
+            </View>
         </View>
+
+        {/* RIGHT SIDE BUTTONS */}
         <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.iconButton} onPress={handleLogPeriod}><Text style={styles.iconText}>🩸</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton} onPress={onLogout}><Text style={styles.iconText}>🚪</Text></TouchableOpacity>
+            {/* 1. Mute/Unmute Button */}
+            <TouchableOpacity style={styles.iconButton} onPress={toggleMute}>
+                <Ionicons
+                    name={isMuted ? "volume-mute" : "volume-high"}
+                    size={24}
+                    color={isMuted ? "#FF453A" : "#FFF"}
+                />
+            </TouchableOpacity>
+
+            {/* 2. Period Log Button (Water Drop Icon) */}
+            <TouchableOpacity style={styles.iconButton} onPress={handleLogPeriod}>
+                <Ionicons name="water" size={24} color="#FF4081" />
+            </TouchableOpacity>
+
+            {/* 3. Logout Button (Power Icon) */}
+            <TouchableOpacity style={[styles.iconButton, styles.logoutButton]} onPress={onLogout}>
+                <Ionicons name="power" size={24} color="#FFF" />
+            </TouchableOpacity>
         </View>
       </View>
-      <GiftedChat messages={messages} onSend={handleSend} user={{ _id: USER._id }} renderFooter={renderFooter}
+      {/* ---------------------- */}
+
+      <GiftedChat
+        messages={messages}
+        onSend={handleSend}
+        user={{ _id: USER._id }}
+        textInputStyle={{ color: '#FFFFFF' }}
         renderInputToolbar={(props) => (
             <View style={styles.inputContainer}>
-                <InputToolbar {...props} containerStyle={styles.inputToolbar} primaryStyle={{ alignItems: 'center' }} />
-                <TouchableOpacity style={[styles.micButton, isRecording && styles.micButtonRecording]} onPress={isRecording ? stopRecording : startRecording}>
-                    <Text style={styles.micText}>{isRecording ? "⬛" : "🎤"}</Text>
+                <InputToolbar
+                    {...props}
+                    containerStyle={styles.inputToolbar}
+                    primaryStyle={{ alignItems: 'center' }}
+                />
+                <TouchableOpacity
+                    style={[styles.micButton, isRecording && styles.micButtonRecording]}
+                    onPress={isRecording ? stopRecording : startRecording}
+                >
+                    <Ionicons name="mic" size={24} color="#FFF" />
                 </TouchableOpacity>
             </View>
         )}
-        renderSend={(props) => <Send {...props} containerStyle={styles.sendButton}><View style={styles.sendIconView}><Text style={{color: 'white'}}>➤</Text></View></Send>}
-        renderBubble={(props) => <Bubble {...props} wrapperStyle={{right: styles.userBubble, left: styles.botBubble}} textStyle={{right: { color: '#FFF' }, left: { color: '#EAEAEA' }}} />}
+        renderSend={(props) => (
+            <Send {...props} containerStyle={styles.sendButton}>
+                <View style={styles.sendIconView}>
+                    <Ionicons name="send" size={18} color="white" />
+                </View>
+            </Send>
+        )}
+        renderBubble={(props) => (
+          <Bubble {...props}
+            wrapperStyle={{
+                right: styles.userBubble,
+                left: styles.botBubble
+            }}
+            textStyle={{
+                right: { color: '#FFF' },
+                left: { color: '#EAEAEA' }
+            }}
+          />
+        )}
+        renderFooter={renderFooter}
       />
     </View>
   );
@@ -237,22 +306,79 @@ export default function ChatScreen({ onLogout, token }: ChatScreenProps) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: Platform.OS === 'android' ? 50 : 20, paddingBottom: 20, paddingHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.1)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: Platform.OS === 'android' ? 50 : 20,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
   headerAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 10, borderWidth: 2, borderColor: '#00C6FF' },
   headerTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
   headerSubtitle: { color: '#00C6FF', fontSize: 12 },
-  headerRight: { flexDirection: 'row' },
-  iconButton: { marginLeft: 15, padding: 8, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 20 },
-  iconText: { fontSize: 18 },
-  inputContainer: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: '#1e1e1e', marginHorizontal: 10, marginBottom: 10, borderRadius: 25, paddingRight: 5, borderWidth: 1, borderColor: '#333' },
-  inputToolbar: { flex: 1, backgroundColor: 'transparent', borderTopWidth: 0, paddingVertical: 5, paddingLeft: 10 },
-  micButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center', marginBottom: 4, marginRight: 5 },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
+
+  // Updated Button Styles
+  iconButton: {
+      marginLeft: 12,
+      padding: 8,
+      backgroundColor: 'rgba(0,0,0,0.3)',
+      borderRadius: 20,
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center'
+  },
+  logoutButton: {
+      backgroundColor: 'rgba(255, 69, 58, 0.2)', // Subtle red tint for logout
+  },
+
+  inputContainer: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      backgroundColor: '#1e1e1e',
+      marginHorizontal: 10,
+      marginBottom: 10,
+      borderRadius: 25,
+      paddingRight: 5,
+      borderWidth: 1,
+      borderColor: '#333',
+  },
+  inputToolbar: {
+      flex: 1,
+      backgroundColor: 'transparent',
+      borderTopWidth: 0,
+      paddingVertical: 5,
+      paddingLeft: 10,
+  },
+  micButton: {
+      width: 40, height: 40, borderRadius: 20,
+      backgroundColor: '#333', justifyContent: 'center', alignItems: 'center',
+      marginBottom: 4, marginRight: 5
+  },
   micButtonRecording: { backgroundColor: '#FF453A' },
-  micText: { fontSize: 20 },
+
   sendButton: { justifyContent: 'center', alignItems: 'center', height: 44, width: 44 },
-  sendIconView: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-  userBubble: { backgroundColor: '#007AFF', borderBottomRightRadius: 0, padding: 5 },
-  botBubble: { backgroundColor: '#333', borderBottomLeftRadius: 0, padding: 5 },
+  sendIconView: {
+      width: 36, height: 36, borderRadius: 18,
+      backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center',
+      marginBottom: 4
+  },
+
+  userBubble: {
+      backgroundColor: '#007AFF',
+      borderBottomRightRadius: 0,
+      padding: 5,
+  },
+  botBubble: {
+      backgroundColor: '#333',
+      borderBottomLeftRadius: 0,
+      padding: 5,
+  },
   footer: { padding: 10 },
 });
