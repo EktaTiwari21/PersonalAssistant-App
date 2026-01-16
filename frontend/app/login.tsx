@@ -1,8 +1,22 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
+  Image
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useFonts, Pacifico_400Regular } from '@expo-google-fonts/pacifico';
 
-// UPDATE THIS IP if needed!
+// ⚠️ CHECK YOUR IP ADDRESS
 const API_URL = 'http://192.168.29.49:5000/api/users';
 
 interface LoginProps {
@@ -16,100 +30,199 @@ export default function LoginScreen({ onLogin, onSwitchToRegister }: LoginProps)
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  let [fontsLoaded] = useFonts({
+    Pacifico_400Regular,
+  });
+
   const handleLogin = async () => {
     setLoading(true);
-    console.log(`Attempting login to: ${API_URL}/login`); // Debug Log
-
     try {
       const response = await fetch(`${API_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-
       const data = await response.json();
-      console.log("Login Response:", data); // Debug Log
-
       if (response.ok) {
-        console.log("Login Success! Token:", data.token); // Debug Log
         onLogin(data.token);
       } else {
         Alert.alert('Login Failed', data.message || 'Invalid credentials');
       }
     } catch (error) {
-      console.error("Network Error:", error); // Debug Log
       Alert.alert('Error', 'Could not connect to server');
     } finally {
       setLoading(false);
     }
   };
 
+  if (!fontsLoaded) {
+    return <ActivityIndicator />;
+  }
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Welcome Back! (v2) 👋</Text>
-      <Text style={styles.subtitle}>Sign in to your personal assistant</Text>
+    <LinearGradient
+      colors={['#7352DD', '#AB91EA', '#9187E0']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.container}
+    >
+      <StatusBar barStyle="light-content" />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardView}
+      >
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your email"
-          placeholderTextColor="#666"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-        />
-      </View>
+        {/* HEADER */}
+        <View style={styles.headerContainer}>
+          <Text style={styles.title}>Hello, Beautiful!</Text>
+          <Text style={styles.subtitle}>Your daily wellness partner is ready.</Text>
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Password</Text>
-        <View style={styles.passwordWrapper}>
+          {/* --- THE FIX: USING THE IMAGE FILE --- */}
+          {/* Make sure you put your exported 'woman.png' into the assets folder! */}
+          <Image
+            source={require('../assets/images/woman.png')}
+            style={styles.illustration}
+            resizeMode="contain"
+          />
+        </View>
+
+        {/* FORM */}
+        <View style={styles.formContainer}>
+
+          {/* Email */}
+          <View style={styles.inputWrapper}>
+             <Ionicons name="mail-outline" size={24} color="#FFF" style={{opacity: 0.7}} />
             <TextInput
-              style={styles.passwordInput}
-              placeholder="Enter your password"
-              placeholderTextColor="#666"
+              style={styles.input}
+              placeholder="Email Address"
+              placeholderTextColor="rgba(255,255,255, 0.6)"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
+
+          {/* Password */}
+          <View style={styles.inputWrapper}>
+            <Ionicons name="lock-closed-outline" size={24} color="#FFF" style={{opacity: 0.7}} />
+            <TextInput
+              style={styles.input}
+              placeholder="Password..."
+              placeholderTextColor="rgba(255,255,255, 0.6)"
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
             />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                <Ionicons
-                    name={showPassword ? "eye-off" : "eye"}
-                    size={24}
-                    color="#aaa"
-                />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              <Ionicons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={22}
+                color="rgba(255,255,255, 0.6)"
+              />
             </TouchableOpacity>
+          </View>
+
+          {/* Sign In Button */}
+          <TouchableOpacity onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
+            <View style={styles.button}>
+              {loading ? (
+                <ActivityIndicator color="#7352DD" />
+              ) : (
+                <Text style={styles.buttonText}>Sign In</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {/* Footer */}
+          <TouchableOpacity style={styles.linkButton} onPress={onSwitchToRegister}>
+            <Text style={styles.linkText}>
+              New here? <Text style={styles.linkTextBold}>Create an account</Text>
+            </Text>
+          </TouchableOpacity>
         </View>
-      </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>Sign In</Text>
-        )}
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.linkButton} onPress={onSwitchToRegister}>
-        <Text style={styles.linkText}>Don't have an account? <Text style={styles.linkTextBold}>Sign Up</Text></Text>
-      </TouchableOpacity>
-    </View>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1C1C1E', justifyContent: 'center', padding: 20 },
-  title: { fontSize: 32, fontWeight: 'bold', color: '#fff', marginBottom: 10 },
-  subtitle: { fontSize: 16, color: '#aaa', marginBottom: 40 },
-  inputContainer: { marginBottom: 20 },
-  label: { color: '#ccc', marginBottom: 8, fontSize: 14 },
-  input: { backgroundColor: '#2C2C2E', color: '#fff', padding: 15, borderRadius: 10, borderWidth: 1, borderColor: '#333', fontSize: 16 },
-  passwordWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#2C2C2E', borderRadius: 10, borderWidth: 1, borderColor: '#333', paddingHorizontal: 15 },
-  passwordInput: { flex: 1, color: '#fff', paddingVertical: 15, fontSize: 16 },
-  eyeIcon: { marginLeft: 10 },
-  button: { backgroundColor: '#007AFF', padding: 15, borderRadius: 10, alignItems: 'center', marginTop: 20 },
-  buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  linkButton: { marginTop: 20, alignItems: 'center' },
-  linkText: { color: '#aaa', fontSize: 14 },
-  linkTextBold: { color: '#007AFF', fontWeight: 'bold' },
+  container: { flex: 1 },
+  keyboardView: { flex: 1, justifyContent: 'center', paddingHorizontal: 30 },
+
+  headerContainer: {
+    alignItems: 'center',
+    marginBottom: 30,
+    marginTop: 40,
+  },
+  title: {
+    fontFamily: 'Pacifico_400Regular',
+    fontSize: 42,
+    color: '#F8F4F0',
+    textAlign: 'center',
+    marginBottom: 10,
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: {width: 1, height: 1},
+    textShadowRadius: 10
+  },
+  subtitle: {
+    fontSize: 18,
+    color: 'rgba(255,255,255, 0.9)',
+    textAlign: 'center',
+    marginBottom: 20,
+    fontWeight: '300'
+  },
+
+  // FIXED ILLUSTRATION STYLE
+  illustration: {
+    width: 280,   // Adjust width to match your design
+    height: 280,  // Adjust height to match your design
+    marginTop: 20,
+  },
+
+  formContainer: { width: '100%' },
+
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(145, 135, 224, 0.47)',
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    marginBottom: 20,
+    paddingHorizontal: 15,
+    height: 55,
+  },
+  input: {
+    flex: 1,
+    color: '#FFF',
+    fontSize: 16,
+    marginLeft: 10,
+    height: '100%'
+  },
+
+  button: {
+    backgroundColor: '#EBE2E0',
+    paddingVertical: 15,
+    borderRadius: 30,
+    alignItems: 'center',
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#6C63FF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  buttonText: {
+    color: '#7352DD',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+
+  linkButton: { marginTop: 25, alignItems: 'center' },
+  linkText: { color: '#EBE2E0', fontSize: 16 },
+  linkTextBold: { color: '#FFF', fontWeight: 'bold', textDecorationLine: 'underline' },
 });
