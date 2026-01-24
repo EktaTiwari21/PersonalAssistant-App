@@ -26,7 +26,7 @@ const BOT = {
 };
 
 // ⚠️ CHECK YOUR IP!
-const API_URL = 'http://192.168.29.49:5000/api';
+const API_URL = 'https://nova-backend-chi.vercel.app/api';
 
 // --- THEME COLORS (Midnight Matte) ---
 const THEME = {

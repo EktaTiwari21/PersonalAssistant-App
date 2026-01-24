@@ -18,7 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Pacifico_400Regular } from '@expo-google-fonts/pacifico';
 
 // ⚠️ CHECK YOUR IP ADDRESS
-const API_URL = 'http://192.168.29.49:5000/api/users';
+const API_URL = 'https://nova-backend-chi.vercel.app/api';
 
 interface RegisterProps {
   onRegisterSuccess: (token: string) => void;
