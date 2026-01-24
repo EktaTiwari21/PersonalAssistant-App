@@ -9,22 +9,21 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  StatusBar,
-  Image
+  ScrollView,
+  Image,
+  useWindowDimensions // <--- NEW: Helps us calculate screen size
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Pacifico_400Regular } from '@expo-google-fonts/pacifico';
 
-// ⚠️ CHECK YOUR IP ADDRESS
+// ✅ YOUR VERCEL BACKEND URL
 const API_URL = 'https://nova-backend-chi.vercel.app/api';
 
-interface LoginProps {
-  onLogin: (token: string) => void;
-  onSwitchToRegister: () => void;
-}
-
-export default function LoginScreen({ onLogin, onSwitchToRegister }: LoginProps) {
+export default function LoginScreen() {
+  const router = useRouter();
+  const { height, width } = useWindowDimensions(); // Get screen size
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -35,16 +34,23 @@ export default function LoginScreen({ onLogin, onSwitchToRegister }: LoginProps)
   });
 
   const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/login`, {
+      const response = await fetch(`${API_URL}/users/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
+
       const data = await response.json();
+
       if (response.ok) {
-        onLogin(data.token);
+        router.replace('/ChatScreen');
       } else {
         Alert.alert('Login Failed', data.message || 'Invalid credentials');
       }
@@ -62,86 +68,84 @@ export default function LoginScreen({ onLogin, onSwitchToRegister }: LoginProps)
   return (
     <LinearGradient
       colors={['#7352DD', '#AB91EA', '#9187E0']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
       style={styles.container}
     >
-      <StatusBar barStyle="light-content" />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
+        style={{ flex: 1 }}
       >
+        <ScrollView
+          contentContainerStyle={{
+            flexGrow: 1,
+            justifyContent: 'center',
+            paddingBottom: 20
+          }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
 
-        {/* HEADER */}
-        <View style={styles.headerContainer}>
-          <Text style={styles.title}>Hello, Beautiful!</Text>
-          <Text style={styles.subtitle}>Your daily wellness partner is ready.</Text>
+            {/* HEADERS */}
+            <Text style={styles.title}>Hello, Beautiful!</Text>
+            <Text style={styles.subtitle}>Your daily wellness partner is ready.</Text>
 
-          {/* --- THE FIX: USING THE IMAGE FILE --- */}
-          {/* Make sure you put your exported 'woman.png' into the assets folder! */}
-          <Image
-            source={require('../assets/images/woman.png')}
-            style={styles.illustration}
-            resizeMode="contain"
-          />
-        </View>
-
-        {/* FORM */}
-        <View style={styles.formContainer}>
-
-          {/* Email */}
-          <View style={styles.inputWrapper}>
-             <Ionicons name="mail-outline" size={24} color="#FFF" style={{opacity: 0.7}} />
-            <TextInput
-              style={styles.input}
-              placeholder="Email Address"
-              placeholderTextColor="rgba(255,255,255, 0.6)"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
+            {/* ILLUSTRATION (Responsive Size) */}
+            <Image
+              source={require('../assets/images/woman.png')}
+              style={{
+                width: width * 0.8,   // 80% of screen width
+                height: height * 0.35, // 35% of screen height (Prevents it from being too tall)
+                alignSelf: 'center',
+                marginBottom: 20,
+                marginTop: 10
+              }}
+              resizeMode="contain"
             />
-          </View>
 
-          {/* Password */}
-          <View style={styles.inputWrapper}>
-            <Ionicons name="lock-closed-outline" size={24} color="#FFF" style={{opacity: 0.7}} />
-            <TextInput
-              style={styles.input}
-              placeholder="Password..."
-              placeholderTextColor="rgba(255,255,255, 0.6)"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-            />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              <Ionicons
-                name={showPassword ? "eye-off-outline" : "eye-outline"}
-                size={22}
-                color="rgba(255,255,255, 0.6)"
-              />
-            </TouchableOpacity>
-          </View>
+            {/* FORM */}
+            <View style={styles.formContainer}>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="mail-outline" size={24} color="#FFF" style={{ opacity: 0.7 }} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email Address"
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                />
+              </View>
 
-          {/* Sign In Button */}
-          <TouchableOpacity onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
-            <View style={styles.button}>
-              {loading ? (
-                <ActivityIndicator color="#7352DD" />
-              ) : (
-                <Text style={styles.buttonText}>Sign In</Text>
-              )}
+              <View style={styles.inputWrapper}>
+                <Ionicons name="lock-closed-outline" size={24} color="#FFF" style={{ opacity: 0.7 }} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Password..."
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                  <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={22} color="rgba(255, 255, 255, 0.6)" />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
+                <View style={styles.button}>
+                  {loading ? <ActivityIndicator color="#7352DD" /> : <Text style={styles.buttonText}>Sign In</Text>}
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.linkButton} onPress={() => router.push('/register')}>
+                <Text style={styles.linkText}>
+                  New here? <Text style={styles.linkTextBold}>Create an account</Text>
+                </Text>
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
 
-          {/* Footer */}
-          <TouchableOpacity style={styles.linkButton} onPress={onSwitchToRegister}>
-            <Text style={styles.linkText}>
-              New here? <Text style={styles.linkTextBold}>Create an account</Text>
-            </Text>
-          </TouchableOpacity>
-        </View>
-
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
   );
@@ -149,50 +153,36 @@ export default function LoginScreen({ onLogin, onSwitchToRegister }: LoginProps)
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  keyboardView: { flex: 1, justifyContent: 'center', paddingHorizontal: 30 },
-
-  headerContainer: {
+  content: {
+    paddingHorizontal: 30,
+    width: '100%',
     alignItems: 'center',
-    marginBottom: 30,
-    marginTop: 40,
   },
   title: {
     fontFamily: 'Pacifico_400Regular',
     fontSize: 42,
     color: '#F8F4F0',
-    textAlign: 'center',
-    marginBottom: 10,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: {width: 1, height: 1},
-    textShadowRadius: 10
+    marginTop: 20,
+    textAlign: 'center'
   },
   subtitle: {
-    fontSize: 18,
-    color: 'rgba(255,255,255, 0.9)',
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 5,
     textAlign: 'center',
-    marginBottom: 20,
-    fontWeight: '300'
+    marginBottom: 10
   },
-
-  // FIXED ILLUSTRATION STYLE
-  illustration: {
-    width: 280,   // Adjust width to match your design
-    height: 280,  // Adjust height to match your design
-    marginTop: 20,
-  },
-
   formContainer: { width: '100%' },
-
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(145, 135, 224, 0.47)',
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    marginBottom: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 20,
+    marginBottom: 15,
     paddingHorizontal: 15,
     height: 55,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   input: {
     flex: 1,
@@ -201,15 +191,12 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     height: '100%'
   },
-
   button: {
-    backgroundColor: '#EBE2E0',
+    backgroundColor: '#F8F4F0',
     paddingVertical: 15,
-    borderRadius: 30,
+    borderRadius: 20,
     alignItems: 'center',
     marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#6C63FF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -218,11 +205,10 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#7352DD',
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: 'bold'
   },
-
   linkButton: { marginTop: 25, alignItems: 'center' },
-  linkText: { color: '#EBE2E0', fontSize: 16 },
-  linkTextBold: { color: '#FFF', fontWeight: 'bold', textDecorationLine: 'underline' },
+  linkText: { color: '#F8F4F0', fontSize: 16 },
+  linkTextBold: { fontWeight: 'bold', textDecorationLine: 'underline' },
 });
