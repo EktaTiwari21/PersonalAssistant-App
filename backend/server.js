@@ -1,5 +1,3 @@
-// Vercel Deploy Fix 1
-
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
@@ -13,32 +11,21 @@ connectDB();
 
 const app = express();
 
-// --- ALLOW FRONTEND CONNECTIONS (CORS) ---
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
+// Enable CORS for everyone
+app.use(cors());
 app.use(express.json());
 
-// ✅ 1. ADD THIS HEALTH CHECK HERE
+// Health Check
 app.get('/', (req, res) => {
-  res.send('Nova Server is Live! (V2)');
+  res.send('API is running successfully!');
 });
 
-// Use Routes
+// Routes
 app.use('/api/users', userRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/period', periodRoutes);
 
-// --- VERCEL EXPORT CONFIGURATION ---
 const PORT = process.env.PORT || 5000;
-
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-}
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 export default app;
