@@ -24,7 +24,7 @@ app.use(express.json());
 
 // ✅ 1. ADD THIS HEALTH CHECK HERE
 app.get('/', (req, res) => {
-  res.send('API is running successfully!');
+  res.send('Nova Server is Live! (V2)');
 });
 
 // Use Routes
